@@ -37,8 +37,7 @@ for IMG in "${IMAGES[@]}"
 do
     echo -n "  $IMG "
     ECR_REGION=$(echo $IMG | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
-    ECRPWD=""
-    [ ! -z "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION)
+    [ ! -z "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
     CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
         --document-name "AWS-RunShellScript" --comment "Pull Images" \
         --parameters commands="apiclient exec admin sheltie ctr --address /run/dockershim.sock --namespace k8s.io images pull $IMG $ECRPWD" \
@@ -46,16 +45,12 @@ do
     while :
     do
         CMD_STATUS=$(aws ssm list-command-invocations --command-id $CMDID --details --query "CommandInvocations[0].Status" --output text)
-        if [ "$CMD_STATUS" == "Success" ]; then
-            echo "done"
-            break
-        elif [ "$CMD_STATUS" == "Failed" ]; then
-            echo "failed!"
-            aws cloudformation delete-stack --stack-name "Bottlerocket-ebs-snapshot"
-            exit 1
-        else
+        if [ "$CMD_STATUS" == "Pending" ] || [ "$CMD_STATUS" == "InProgress" ]; then
             echo -n "."
             sleep 5
+        else
+            echo " $CMD_STATUS"
+            break
         fi
     done
 done
