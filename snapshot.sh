@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# set OS architecture of Bottlerocket, x86_64 or arm64
+ARCH=x86_64
+
 export AWS_DEFAULT_REGION=us-west-2
 
 declare -a IMAGES=(
@@ -15,11 +18,27 @@ declare -a IMAGES=(
 )
 
 ##############################################################################################
+case $ARCH in
+  x86_64)
+    INSTANCE_TYPE=t2.small
+    ;;
+
+  arm64)
+    INSTANCE_TYPE=t4g.small
+    ;;
+
+  *)
+    echo "Unsupported ARCH, must be x86_64 or arm64"
+    ;;
+esac
+
 export AWS_PAGER=""
 
 # launch EC2
 echo "[1/6] Deploying EC2 CFN stack ..."
-aws cloudformation deploy --stack-name "Bottlerocket-ebs-snapshot" --template-file ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM
+AMI_ID=/aws/service/bottlerocket/aws-k8s-1.21/$ARCH/latest/image_id
+aws cloudformation deploy --stack-name "Bottlerocket-ebs-snapshot" --template-file ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
+    --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name Bottlerocket-ebs-snapshot --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
 # wait for SSM ready
