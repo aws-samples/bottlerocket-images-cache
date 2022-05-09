@@ -37,9 +37,10 @@ export AWS_PAGER=""
 # launch EC2
 echo "[1/6] Deploying EC2 CFN stack ..."
 AMI_ID=/aws/service/bottlerocket/aws-k8s-1.21/$ARCH/latest/image_id
-aws cloudformation deploy --stack-name "Bottlerocket-ebs-snapshot" --template-file ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
+CFN_STACK_NAME="Bottlerocket-ebs-snapshot"
+aws cloudformation deploy --stack-name $CFN_STACK_NAME --template-file ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
     --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE
-INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name Bottlerocket-ebs-snapshot --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
+INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name $CFN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
 # wait for SSM ready
 echo -n "[2/6] Launching SSM ."
@@ -88,7 +89,7 @@ echo " done!"
 # create EBS snapshot
 echo -n "[5/6] Creating snapshot ."
 DATA_VOLUME_ID=$(aws ec2 describe-instances  --instance-id $INSTANCE_ID --query "Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName=='/dev/xvdb'].Ebs.VolumeId" --output text)
-SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot" --query "SnapshotId" --output text)
+SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot $ARCH" --query "SnapshotId" --output text)
 while [[ $(aws ec2 describe-snapshots --snapshot-ids $SNAPSHOT_ID --query "Snapshots[0].State" --output text) != "completed" ]]
 do
    echo -n "."
