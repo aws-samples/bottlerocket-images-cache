@@ -36,7 +36,7 @@ karpenter:
   createServiceAccount: true
 EOF
 
-# 3. deploy karpenter provisioner with custom launch template
+# 3. deploy karpenter provisioner with data volume EBS snapshot
 kubectl apply -f - << EOF
 apiVersion: karpenter.sh/v1alpha5
 kind: Provisioner
