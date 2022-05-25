@@ -1,42 +1,20 @@
 #!/bin/bash
 set -e
 
-# set OS architecture of Bottlerocket, x86_64 or arm64
-ARCH=x86_64
-
-export AWS_DEFAULT_REGION=us-west-2
+export AWS_DEFAULT_REGION=ap-northeast-1
 
 declare -a IMAGES=(
-    "602401143452.dkr.ecr.ap-northeast-1.amazonaws.com/amazon-k8s-cni-init:v1.10.1-eksbuild.1" 
-    "602401143452.dkr.ecr.us-east-1.amazonaws.com/amazon-k8s-cni:v1.10.1-eksbuild.1"
-    "602401143452.dkr.ecr.eu-west-1.amazonaws.com/eks/kube-proxy:v1.21.2-eksbuild.2"
-    "602401143452.dkr.ecr.ap-northeast-1.amazonaws.com/eks/pause-amd64:3.1"
-    "public.ecr.aws/whe/tensorflow:latest"
-    "docker.io/bitnami/tensorflow-serving:2.8.0-debian-10-r80"
-    "k8s.gcr.io/pause:latest"
-    "quay.io/coreos/etcd:latest"
+    "public.ecr.aws/eks-distro/kubernetes/pause:3.2"
 )
 
+export INSTANCE_TYPE=t2.small
+export AMI_ID=/aws/service/bottlerocket/aws-k8s-1.21/x86_64/latest/image_id
+
 ##############################################################################################
-case $ARCH in
-  x86_64)
-    INSTANCE_TYPE=t2.small
-    ;;
-
-  arm64)
-    INSTANCE_TYPE=t4g.small
-    ;;
-
-  *)
-    echo "Unsupported ARCH, must be x86_64 or arm64"
-    ;;
-esac
-
 export AWS_PAGER=""
 
 # launch EC2
 echo "[1/6] Deploying EC2 CFN stack ..."
-AMI_ID=/aws/service/bottlerocket/aws-k8s-1.21/$ARCH/latest/image_id
 CFN_STACK_NAME="Bottlerocket-ebs-snapshot"
 aws cloudformation deploy --stack-name $CFN_STACK_NAME --template-file ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
     --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE
@@ -60,7 +38,7 @@ do
     [ ! -z "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
     CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
         --document-name "AWS-RunShellScript" --comment "Pull Images" \
-        --parameters commands="apiclient exec admin sheltie ctr --address /run/dockershim.sock --namespace k8s.io images pull $IMG $ECRPWD" \
+        --parameters commands="apiclient exec admin sheltie ctr --address /run/dockershim.sock --namespace k8s.io images pull --all-platforms $IMG $ECRPWD" \
         --query "Command.CommandId" --output text)
     while :
     do
