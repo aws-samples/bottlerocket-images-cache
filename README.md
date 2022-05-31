@@ -1,11 +1,11 @@
 # Caching Container Images for AWS Bottlerocket Instances
-This solution was designed to reduce the boot time of cotainers on AWS Bottlerocket instances which need to pull large container image by caching the images in the data volume.
+This solution was designed to reduce the boot time of containers on AWS Bottlerocket instances which need to pull large container image by caching the images in the data volume.
 
-Data analytics and machine learning workload running in container are typical use cases which need large size container images, these images are usually more than 1 GiB size, while pulling and exacting an image from ECR with 1 GiB size(compressed) may take 1 minute to complete. Reducing time to pull image is the key to improve effeciency of booting these contaienrs.
+Data analytics and machine learning workload running in container are typical use cases which need large size container images, these images are usually more than 1 GiB size, while pulling and exacting an image from ECR with 1 GiB size(compressed) may take 1 minute to complete. Reducing time to pull image is the key to improve efficiency of booting these containers.
 
 [Bottlerocket](https://github.com/bottlerocket-os/bottlerocket) is a Linux-based open-source operating system that is purpose-built by AWS for running containers. There are 2 volumes(OS volume and data volume) in Bottlerocket, data volume is used to store artifacts and container images, this solution will use this volume to pull images and get the snapshot for later usage.
 
-This solution will use Bottlerocket for EKS AMI to demostrate the process to cache images in EBS snapshot and then launch it in EKS cluster.
+This solution will use Bottlerocket for EKS AMI to demonstrate the process to cache images in EBS snapshot and then launch it in EKS cluster.
 
 # How it works
 
@@ -15,7 +15,7 @@ This solution will use Bottlerocket for EKS AMI to demostrate the process to cac
 2. Build the EBS snapshot for the data volume.
 3. Launch instance with the EBS snapshot.
 
-# Setps
+# Steps
 1. Set up [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html), [eksctl](https://github.com/weaveworks/eksctl) and kubectl in your development environment(Linux or MacOS).
 2. Clone this projects in your local environment.
 3. Modify ```snapshot.sh``` to set AWS_DEFAULT_REGION and IMAGES you want to cache.
