@@ -1,14 +1,66 @@
 #!/bin/bash
 set -e
 
-export AWS_DEFAULT_REGION=ap-northeast-1
+function print_help {
+    echo "usage: $0 [options] <comma seperated container images>"
+    echo "Build EBS snapshot for Bottlerocket data volume with cached container images"
+    echo "Options:"
+    echo "-h,--help print this help"
+    echo "-r,--region Set AWS region to build the EBS snapshot, (default: use environment variable of AWS_DEFAULT_REGION)"
+    echo "-a,--ami Set SSM Parameter path for Bottlerocket ID, (default: /aws/service/bottlerocket/aws-k8s-1.21/x86_64/latest/image_id)"
+    echo "-i,--instance-type Set EC2 instance type to build this snapshot, (default: t2.small)"
+}
 
-declare -a IMAGES=(
-    "public.ecr.aws/eks-distro/kubernetes/pause:3.2"
-)
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -h|--help)
+            print_help
+            exit 1
+            ;;
+        -r|--region)
+            AWS_DEFAULT_REGION=$2
+            shift
+            shift
+            ;;
+        -a|--ami)
+            AMI_ID=$2
+            shift
+            shift
+            ;;
+        -i|--instance-type)
+            INSTANCE_TYPE=$2
+            shift
+            shift
+            ;;
+        *)    # unknown option
+            POSITIONAL+=("$1") # save it in an array for later
+            shift # past argument
+            ;;
+    esac
+done
 
-export INSTANCE_TYPE=t2.small
-export AMI_ID=/aws/service/bottlerocket/aws-k8s-1.21/x86_64/latest/image_id
+set +u
+set -- "${POSITIONAL[@]}" # restore positional parameters
+IMAGES="$1"
+set -u
+
+AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-}
+AMI_ID=${AMI_ID:-/aws/service/bottlerocket/aws-k8s-1.21/x86_64/latest/image_id}
+INSTANCE_TYPE=${INSTANCE_TYPE:-t2.small}
+
+if [ -z "${AWS_DEFAULT_REGION}" ]; then
+    echo "Please set AWS region"
+    exit 1
+fi
+
+if [ -z "${IMAGES}" ]; then
+    echo "Please set images list"
+    exit 1
+fi
+
+IMAGES_LIST=(`echo $IMAGES | sed 's/,/\n/g'`)
+export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
 
 ##############################################################################################
 export AWS_PAGER=""
@@ -31,7 +83,7 @@ echo " done!"
 
 # pull images
 echo "[3/6] Pulling ECR images:"
-for IMG in "${IMAGES[@]}"
+for IMG in "${IMAGES_LIST[@]}"
 do
     echo -n "  $IMG "
     ECR_REGION=$(echo $IMG | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
@@ -67,7 +119,7 @@ echo " done!"
 # create EBS snapshot
 echo -n "[5/6] Creating snapshot ."
 DATA_VOLUME_ID=$(aws ec2 describe-instances  --instance-id $INSTANCE_ID --query "Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName=='/dev/xvdb'].Ebs.VolumeId" --output text)
-SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot $ARCH" --query "SnapshotId" --output text)
+SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot" --query "SnapshotId" --output text)
 while [[ $(aws ec2 describe-snapshots --snapshot-ids $SNAPSHOT_ID --query "Snapshots[0].State" --output text) != "completed" ]]
 do
    echo -n "."
@@ -81,4 +133,4 @@ aws cloudformation delete-stack --stack-name "Bottlerocket-ebs-snapshot"
 
 # done!
 echo "--------------------------------------------------"
-echo "All done! Created snapshot: $SNAPSHOT_ID"
+echo "All done! Created snapshot in $AWS_DEFAULT_REGION: $SNAPSHOT_ID"
