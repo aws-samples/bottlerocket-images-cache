@@ -17,9 +17,11 @@ This solution will use Bottlerocket for EKS AMI to demonstrate the process to ca
 
 # Steps
 1. Set up [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html), [eksctl](https://github.com/weaveworks/eksctl) and kubectl in your development environment(Linux or MacOS).
-2. Clone this projects in your local environment.
-3. Modify ```snapshot.sh``` to set AWS_DEFAULT_REGION and IMAGES you want to cache.
-4. Run ```snapshot.sh``` to build the EBS snapshot.
-5. Modify ```cluster.sh``` to set CLUSTER_NAME, EBS_SNAPSHOT_ID and AWS_DEFAULT_REGION
-6. Run ```cluster.sh``` to build the testing cluster.
-7. Run ```kubectl get node``` to list the worker nodes with cached images.
+1. Clone this projects in your local environment.
+1. Run ```snapshot.sh``` to build the EBS snapshot.
+    ```
+    ./snapshot.sh -r us-west-2 public.ecr.aws/eks-distro/kubernetes/pause:3.2
+    ```
+1. Modify ```cluster.sh``` to set CLUSTER_NAME, EBS_SNAPSHOT_ID and AWS_DEFAULT_REGION
+1. Run ```cluster.sh``` to build the testing cluster.
+1. Run ```kubectl get node``` to list the worker nodes with cached images.
