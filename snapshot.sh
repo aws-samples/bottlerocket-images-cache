@@ -85,23 +85,26 @@ echo " done!"
 echo "[3/6] Pulling ECR images:"
 for IMG in "${IMAGES_LIST[@]}"
 do
-    echo -n "  $IMG "
     ECR_REGION=$(echo $IMG | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
     [ ! -z "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
-    CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
-        --document-name "AWS-RunShellScript" --comment "Pull Images" \
-        --parameters commands="apiclient exec admin sheltie ctr --address /run/dockershim.sock --namespace k8s.io images pull --all-platforms $IMG $ECRPWD" \
-        --query "Command.CommandId" --output text)
-    while :
+    for PLATFORM in amd64 arm64
     do
-        CMD_STATUS=$(aws ssm list-command-invocations --command-id $CMDID --details --query "CommandInvocations[0].Status" --output text)
-        if [ "$CMD_STATUS" == "Pending" ] || [ "$CMD_STATUS" == "InProgress" ]; then
-            echo -n "."
-            sleep 5
-        else
-            echo " $CMD_STATUS"
-            break
-        fi
+        echo -n "  $IMG - $PLATFORM"
+        CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
+            --document-name "AWS-RunShellScript" --comment "Pull Images" \
+            --parameters commands="apiclient exec admin sheltie ctr -a /run/dockershim.sock -n k8s.io images pull --platform $PLATFORM $IMG $ECRPWD" \
+            --query "Command.CommandId" --output text)
+        while :
+        do
+            CMD_STATUS=$(aws ssm list-command-invocations --command-id $CMDID --details --query "CommandInvocations[0].Status" --output text)
+            if [ "$CMD_STATUS" == "Pending" ] || [ "$CMD_STATUS" == "InProgress" ]; then
+                echo -n "."
+                sleep 5
+            else
+                echo " $CMD_STATUS"
+                break
+            fi
+        done
     done
 done
 echo " done!"
