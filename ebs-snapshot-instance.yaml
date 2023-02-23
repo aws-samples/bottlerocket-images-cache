@@ -5,7 +5,7 @@ Parameters:
   AmiID:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Description: "The ID of the AMI."
-    Default: /aws/service/bottlerocket/aws-k8s-1.21/x86_64/latest/image_id
+    Default: /aws/service/bottlerocket/aws-k8s-1.24/x86_64/latest/image_id
   InstanceType:
     Type: String
     Description: "EC2 instance type to launch"

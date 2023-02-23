@@ -46,7 +46,7 @@ IMAGES="$1"
 set -u
 
 AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-}
-AMI_ID=${AMI_ID:-/aws/service/bottlerocket/aws-k8s-1.21/x86_64/latest/image_id}
+AMI_ID=${AMI_ID:-/aws/service/bottlerocket/aws-k8s-1.24/x86_64/latest/image_id}
 INSTANCE_TYPE=${INSTANCE_TYPE:-t2.small}
 
 if [ -z "${AWS_DEFAULT_REGION}" ]; then

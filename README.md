@@ -1,11 +1,11 @@
 # Caching Container Images for AWS Bottlerocket Instances
-This solution was designed to reduce the boot time of containers on AWS Bottlerocket instances which need to pull large container image by caching the images in the data volume.
+The purpose of this solution is to reduce the boot time of containers on AWS Bottlerocket instances that require large container images by caching the images in the data volume.
 
-Data analytics and machine learning workload running in container are typical use cases which need large size container images, these images are usually more than 1 GiB size, while pulling and exacting an image from ECR with 1 GiB size(compressed) may take 1 minute to complete. Reducing time to pull image is the key to improve efficiency of booting these containers.
+Data analytics and machine learning workloads often require container images larger than 1 GiB, which can take up to a minute to pull and extract from ECR. To improve the efficiency of booting these containers, reducing the time to pull the image is key.
 
-[Bottlerocket](https://github.com/bottlerocket-os/bottlerocket) is a Linux-based open-source operating system that is purpose-built by AWS for running containers. There are 2 volumes(OS volume and data volume) in Bottlerocket, data volume is used to store artifacts and container images, this solution will use this volume to pull images and get the snapshot for later usage.
+[Bottlerocket](https://github.com/bottlerocket-os/bottlerocket) is a Linux-based open-source operating system built by AWS specifically for running containers. It has two volumes, an OS volume and a data volume, with the latter used for storing artifacts and container images. This solution will leverage the data volume to pull images and take snapshots for later usage.
 
-This solution will use Bottlerocket for EKS AMI to demonstrate the process to cache images in EBS snapshot and then launch it in EKS cluster.
+To demonstrate the process of caching images in EBS snapshots and launching them in an EKS cluster, this solution will use Bottlerocket for EKS AMI.
 
 # How it works
 

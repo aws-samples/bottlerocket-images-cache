@@ -2,13 +2,8 @@
 set -e
 
 CLUSTER_NAME="fastboot"
-EBS_SNAPSHOT_ID="snap-0d1590bbcf88bba94"
-AWS_DEFAULT_REGION="ap-northeast-1"
-
-if [ $(eksctl version) \< "0.97.0" ]; then
-    echo "eksctl version should be >= 0.97.0"
-    exit 1
-fi
+EBS_SNAPSHOT_ID="snap-0123456789abc"
+AWS_DEFAULT_REGION="us-west-2"
 
 # 1. deploy EKS cluster
 eksctl create cluster -f - << EOF
@@ -18,7 +13,7 @@ kind: ClusterConfig
 metadata:
   name: ${CLUSTER_NAME}
   region: ${AWS_DEFAULT_REGION}
-  version: '1.21'
+  version: '1.24'
   tags:
     karpenter.sh/discovery: ${CLUSTER_NAME}
 
@@ -32,7 +27,7 @@ fargateProfiles:
       - namespace: karpenter
 
 karpenter:
-  version: '0.9.1'
+  version: 'v0.25.0'
   createServiceAccount: true
 EOF
 
@@ -50,23 +45,30 @@ spec:
   limits:
     resources:
       cpu: 1000
-  provider:
-    subnetSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    securityGroupSelector:
-      karpenter.sh/discovery: ${CLUSTER_NAME}
-    amiFamily: Bottlerocket
-    blockDeviceMappings:
-      - deviceName: /dev/xvda
-        ebs:
-          volumeSize: 2Gi
-          volumeType: gp3
-      - deviceName: /dev/xvdb
-        ebs:
-          volumeSize: 80Gi
-          volumeType: gp3
-          snapshotID: ${EBS_SNAPSHOT_ID}
+  providerRef:
+    name: default
   ttlSecondsAfterEmpty: 30
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+  securityGroupSelector:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+  amiFamily: Bottlerocket
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 2Gi
+        volumeType: gp3
+    - deviceName: /dev/xvdb
+      ebs:
+        volumeSize: 80Gi
+        volumeType: gp3
+        snapshotID: ${EBS_SNAPSHOT_ID}
 EOF
 
 # kubectl set env daemonset aws-node -n kube-system WARM_IP_TARGET=1
