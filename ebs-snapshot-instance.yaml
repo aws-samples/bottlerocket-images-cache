@@ -20,10 +20,8 @@ Resources:
       IamInstanceProfile: !Ref BottlerocketNodeInstanceProfile
       UserData:
         Fn::Base64: |
-          [settings]
-            [settings.host-containers]
-              [settings.host-containers.admin]
-                enabled = true
+          [settings.host-containers.admin]
+          enabled = true
   BottlerocketNodeInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:

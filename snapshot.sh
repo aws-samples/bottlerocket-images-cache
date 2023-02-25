@@ -89,22 +89,12 @@ do
     [ ! -z "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
     for PLATFORM in amd64 arm64
     do
-        echo -n "  $IMG - $PLATFORM"
+        echo -n "  $IMG - $PLATFORM ... "
         CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" --comment "Pull Images" \
             --parameters commands="apiclient exec admin sheltie ctr -a /run/dockershim.sock -n k8s.io images pull --platform $PLATFORM $IMG $ECRPWD" \
             --query "Command.CommandId" --output text)
-        while :
-        do
-            CMD_STATUS=$(aws ssm list-command-invocations --command-id $CMDID --details --query "CommandInvocations[0].Status" --output text)
-            if [ "$CMD_STATUS" == "Pending" ] || [ "$CMD_STATUS" == "InProgress" ]; then
-                echo -n "."
-                sleep 5
-            else
-                echo " $CMD_STATUS"
-                break
-            fi
-        done
+        aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID > /dev/null && echo "done"
     done
 done
 echo " done!"
