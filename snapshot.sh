@@ -110,25 +110,15 @@ done
 echo " done!"
 
 # stop EC2
-echo -n "[4/6] Stopping instance ."
+echo -n "[4/6] Stopping instance ... "
 aws ec2 stop-instances --instance-ids $INSTANCE_ID --output text > /dev/null
-while [[ $(aws ec2 describe-instance-status --include-all-instances --instance-id $INSTANCE_ID --query "InstanceStatuses[0].InstanceState.Name" --output text) != "stopped" ]]
-do
-   echo -n "."
-   sleep 5
-done
-echo " done!"
+aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID" > /dev/null && echo "done!"
 
 # create EBS snapshot
-echo -n "[5/6] Creating snapshot ."
+echo -n "[5/6] Creating snapshot ... "
 DATA_VOLUME_ID=$(aws ec2 describe-instances  --instance-id $INSTANCE_ID --query "Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName=='/dev/xvdb'].Ebs.VolumeId" --output text)
 SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot" --query "SnapshotId" --output text)
-while [[ $(aws ec2 describe-snapshots --snapshot-ids $SNAPSHOT_ID --query "Snapshots[0].State" --output text) != "completed" ]]
-do
-   echo -n "."
-   sleep 5
-done
-echo " done!"
+aws ec2 wait snapshot-completed --snapshot-ids "$SNAPSHOT_ID" > /dev/null && echo "done!"
 
 # destroy temporary instance
 echo "[6/6] Cleanup."
