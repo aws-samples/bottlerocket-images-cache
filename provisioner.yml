@@ -46,7 +46,7 @@ spec:
       ebs:
         volumeSize: 80Gi
         volumeType: gp3
-        snapshotID: snap-00ae8d3873814b4e4
+        snapshotID: snap-02349d69820e10135
         iops: 4000
         deleteOnTermination: true
         throughput: 1000

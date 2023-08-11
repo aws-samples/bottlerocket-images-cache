@@ -1,15 +1,15 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Bottlerocket instance to snashot data volume.
+Description: Bottlerocket instance to snapshot data volume.
 
 Parameters:
   AmiID:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Description: "The ID of the AMI."
-    Default: /aws/service/bottlerocket/aws-k8s-1.24/x86_64/latest/image_id
+    Default: /aws/service/bottlerocket/aws-k8s-1.27/x86_64/latest/image_id
   InstanceType:
     Type: String
     Description: "EC2 instance type to launch"
-    Default: t2.small
+    Default: m5.large
 
 Resources:
   BottlerocketInstance:
@@ -18,6 +18,18 @@ Resources:
       ImageId: !Ref AmiID
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref BottlerocketNodeInstanceProfile
+      BlockDeviceMappings:
+      - DeviceName: /dev/xvda
+        Ebs:
+          VolumeSize: 10
+          VolumeType: gp3
+          DeleteOnTermination: true
+      - DeviceName: /dev/xvdb
+        Ebs:
+          VolumeSize: 80
+          VolumeType: gp3
+          Iops: 4000
+          DeleteOnTermination: true
       UserData:
         Fn::Base64: |
           [settings.host-containers.admin]
@@ -44,7 +56,7 @@ Resources:
       ManagedPolicyArns:
         - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
         - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
-        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"  
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 
 Outputs:
   InstanceId:
