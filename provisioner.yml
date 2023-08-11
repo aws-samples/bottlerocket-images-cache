@@ -41,8 +41,12 @@ spec:
       ebs:
         volumeSize: 10Gi
         volumeType: gp3
+        deleteOnTermination: true
     - deviceName: /dev/xvdb
       ebs:
         volumeSize: 80Gi
         volumeType: gp3
         snapshotID: snap-00ae8d3873814b4e4
+        iops: 4000
+        deleteOnTermination: true
+        throughput: 1000

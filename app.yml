@@ -15,7 +15,12 @@ spec:
       terminationGracePeriodSeconds: 0
       containers:
       - name: inflate
-        image: public.ecr.aws/eks-distro/kubernetes/pause:3.2
+        image: 373534280245.dkr.ecr.us-west-2.amazonaws.com/stable-diffusion-webui/inference-api:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - "/bin/sh"
+        - "-c"
+        - "sleep 86400"
         resources:
           requests:
             cpu: 1
