@@ -6,9 +6,24 @@ function print_help {
     echo "Build EBS snapshot for Bottlerocket data volume with cached container images"
     echo "Options:"
     echo "-h,--help print this help"
-    echo "-r,--region Set AWS region to build the EBS snapshot, (default: use environment variable of AWS_DEFAULT_REGION)"
+    echo "-r,--region Set AWS region to build the EBS snapshot, (default: use environment variable of AWS_DEFAULT_REGION or IMDS)"
     echo "-a,--ami Set SSM Parameter path for Bottlerocket ID, (default: /aws/service/bottlerocket/aws-k8s-1.27/x86_64/latest/image_id)"
     echo "-i,--instance-type Set EC2 instance type to build this snapshot, (default: m5.large)"
+    echo "-q,--quiet Suppress all outputs and output generated snapshot ID only (default: false)"
+}
+
+QUIET=false
+
+function log() {
+    if [ "$QUIET" = false ]; then
+        datestring=`date +"%Y-%m-%d %H:%M:%S"`
+        echo -e "$datestring I - $@"
+    fi
+}
+
+function logerror() {
+    datestring=`date +"%Y-%m-%d %H:%M:%S"`
+    echo -e "$datestring E - $@" 1>&2;
 }
 
 while [[ $# -gt 0 ]]; do
@@ -33,6 +48,10 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
+        -q|--quiet)
+            QUIET=true
+            shift
+            ;;
         *)    # unknown option
             POSITIONAL+=("$1") # save it in an array for later
             shift # past argument
@@ -45,18 +64,18 @@ set -- "${POSITIONAL[@]}" # restore positional parameters
 IMAGES="$1"
 set -u
 
-AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-}
+AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(aws ec2 describe-availability-zones --output text --query 'AvailabilityZones[0].[RegionName]')}
 AMI_ID=${AMI_ID:-/aws/service/bottlerocket/aws-k8s-1.27/x86_64/latest/image_id}
 INSTANCE_TYPE=${INSTANCE_TYPE:-m5.large}
 CTR_CMD="apiclient exec admin sheltie ctr -a /run/containerd/containerd.sock -n k8s.io"
 
 if [ -z "${AWS_DEFAULT_REGION}" ]; then
-    echo "Please set AWS region"
+    logerror "Please set AWS region"
     exit 1
 fi
 
 if [ -z "${IMAGES}" ]; then
-    echo "Please set images list"
+    logerror "Please set images list"
     exit 1
 fi
 
@@ -67,82 +86,83 @@ export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
 export AWS_PAGER=""
 
 # launch EC2
-echo "[1/8] Deploying EC2 CFN stack ..."
+log "[1/8] Deploying EC2 CFN stack ..."
 CFN_STACK_NAME="Bottlerocket-ebs-snapshot"
 aws cloudformation deploy --stack-name $CFN_STACK_NAME --template-file ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
-    --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE
+    --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE > /dev/null
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name $CFN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
 # wait for SSM ready
-echo -n "[2/8] Launching SSM ."
+log  "[2/8] Launching SSM ."
 while [[ $(aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text) != "Online" ]]
 do
-   echo -n "."
    sleep 5
 done
-echo " Done!"
+log "SSM launched in instance $INSTANCE_ID."
 
 # stop kubelet.service
-echo -n "[3/8] Stopping kubelet.service .."
+log "[3/8] Stopping kubelet.service .."
 CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
     --document-name "AWS-RunShellScript" --comment "Stop kubelet" \
     --parameters commands="apiclient exec admin sheltie systemctl stop kubelet" \
     --query "Command.CommandId" --output text)
 aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID > /dev/null
-echo " Done!"
+log "Kubelet service stopped."
 
 # cleanup existing images
-echo -n "[4/8] Cleanup existing images .."
+log "[4/8] Cleanup existing images .."
 CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
     --document-name "AWS-RunShellScript" --comment "Cleanup existing images" \
     --parameters commands="$CTR_CMD images rm \$($CTR_CMD images ls -q)" \
     --query "Command.CommandId" --output text)
 aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID > /dev/null
-echo " Done!"
+log "Existing images cleaned"
 
 # pull images
-echo "[5/8] Pulling ECR images:"
+log "[5/8] Pulling images:"
 for IMG in "${IMAGES_LIST[@]}"
 do
     ECR_REGION=$(echo $IMG | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
     [ ! -z "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
     for PLATFORM in amd64 arm64
     do
-        echo -n "  $IMG - $PLATFORM ... "
+        log "Pulling $IMG - $PLATFORM ... "
         COMMAND="$CTR_CMD images pull --label io.cri-containerd.image=managed --platform $PLATFORM $IMG $ECRPWD "
         #echo $COMMAND
         CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" --comment "Pull Images" \
             --parameters commands="$COMMAND" \
             --query "Command.CommandId" --output text)
-        until aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID &> /dev/null && echo " Done!"
+        until aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID &> /dev/null && log "$IMG - $PLATFORM pulled. "
         do
-            echo -n "."
             sleep 5
         done
     done
 done
-echo " Done!"
+
 
 # stop EC2
-echo -n "[6/8] Stopping instance ... "
+log "[6/8] Stopping instance ... "
 aws ec2 stop-instances --instance-ids $INSTANCE_ID --output text > /dev/null
-aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID" > /dev/null && echo " Done!"
+aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID" > /dev/null && log "Instance $INSTANCE_ID stopped"
 
 # create EBS snapshot
-echo -n "[7/8] Creating snapshot ... "
+log "[7/8] Creating snapshot ... "
 DATA_VOLUME_ID=$(aws ec2 describe-instances  --instance-id $INSTANCE_ID --query "Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName=='/dev/xvdb'].Ebs.VolumeId" --output text)
 SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot" --query "SnapshotId" --output text)
-until aws ec2 wait snapshot-completed --snapshot-ids "$SNAPSHOT_ID" &> /dev/null && echo " Done!"
+until aws ec2 wait snapshot-completed --snapshot-ids "$SNAPSHOT_ID" &> /dev/null && log "Snapshot $SNAPSHOT_ID generated."
 do
-    echo -n "."
     sleep 5
 done
 
 # destroy temporary instance
-echo "[8/8] Cleanup."
+log "[8/8] Cleanup."
 aws cloudformation delete-stack --stack-name "Bottlerocket-ebs-snapshot"
+log "Stack deleted."
 
 # done!
-echo "--------------------------------------------------"
-echo "All done! Created snapshot in $AWS_DEFAULT_REGION: $SNAPSHOT_ID"
+log "--------------------------------------------------"
+log "All done! Created snapshot in $AWS_DEFAULT_REGION: $SNAPSHOT_ID"
+if [ $QUIET = true ]; then
+    echo "$SNAPSHOT_ID"
+fi
