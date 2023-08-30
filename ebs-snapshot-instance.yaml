@@ -12,34 +12,6 @@ Parameters:
     Default: m5.large
 
 Resources:
-  BottlerocketInstance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !Ref AmiID
-      InstanceType: !Ref InstanceType
-      IamInstanceProfile: !Ref BottlerocketNodeInstanceProfile
-      BlockDeviceMappings:
-      - DeviceName: /dev/xvda
-        Ebs:
-          VolumeSize: 10
-          VolumeType: gp3
-          DeleteOnTermination: true
-      - DeviceName: /dev/xvdb
-        Ebs:
-          VolumeSize: 80
-          VolumeType: gp3
-          Iops: 4000
-          DeleteOnTermination: true
-      UserData:
-        Fn::Base64: |
-          [settings.host-containers.admin]
-          enabled = true
-  BottlerocketNodeInstanceProfile:
-    Type: "AWS::IAM::InstanceProfile"
-    Properties:
-      Path: "/"
-      Roles:
-        - Ref: "BottlerocketNodeRole"
   BottlerocketNodeRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -57,6 +29,47 @@ Resources:
         - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
         - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
         - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+
+  BottlerocketNodeInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: "BottlerocketNodeRole"
+
+  BottlerocketLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref AmiID
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Name: !Ref BottlerocketNodeInstanceProfile
+        UserData:
+          Fn::Base64: |
+            [settings.host-containers.admin]
+            enabled = true
+        BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 10
+            VolumeType: gp3
+            DeleteOnTermination: true
+        - DeviceName: /dev/xvdb
+          Ebs:
+            VolumeSize: 50
+            VolumeType: gp3
+            Throughput: 1000
+            Iops: 4000
+            DeleteOnTermination: true
+
+  BottlerocketInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref BottlerocketLaunchTemplate
+        Version: !GetAtt BottlerocketLaunchTemplate.LatestVersionNumber
+
 
 Outputs:
   InstanceId:
