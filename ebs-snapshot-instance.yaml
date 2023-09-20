@@ -13,10 +13,18 @@ Parameters:
     Type: String
     Description: "EC2 instance type to launch"
     Default: m5.large
+  InstanceRole:
+    Type: String
+    Description: "Name of IAM Role used in instance"
+    Default: NONE
+
+Conditions:
+  CreateNewIAMRole: !Equals [!Ref InstanceRole, NONE]
 
 Resources:
   BottlerocketNodeRole:
     Type: "AWS::IAM::Role"
+    Condition: CreateNewIAMRole
     Properties:
       Path: /
       AssumeRolePolicyDocument:
@@ -38,7 +46,7 @@ Resources:
     Properties:
       Path: "/"
       Roles:
-        - Ref: "BottlerocketNodeRole"
+        - !If [CreateNewIAMRole, !Ref BottlerocketNodeRole, !Ref InstanceRole]
 
   BottlerocketLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate

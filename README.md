@@ -44,6 +44,10 @@ Options:
 -q,--quiet Suppress all outputs and output generated snapshot ID only (default: false)
 ```
 
+## Required IAM Policy
+
+This script requires the following IAM policies:
+
 ## Using snapshot with Amazon EKS
 
 There are 3 approaches to provision Amazon EC2 nodes for Amazon EKS cluster:
