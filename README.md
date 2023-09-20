@@ -49,6 +49,38 @@ Options:
 
 This script requires the following IAM policies:
 
+```
+"cloudformation:*",
+"iam:GetInstanceProfile",
+"iam:CreateInstanceProfile",
+"iam:AddRoleToInstanceProfile",
+"iam:DeleteInstanceProfile",
+"iam:RemoveRoleFromInstanceProfile",
+"iam:PassRole",
+"ec2:Describe*",
+"ec2:RunInstances",
+"ec2:TerminateInstances",
+"ec2:StopInstances",
+"ec2:StartInstances",
+"ec2:CreateVolume",
+"ec2:AssociateIamInstanceProfile",
+"ec2:ReplaceIamInstanceProfileAssociation",
+"ec2:DisassociateIamInstanceProfile",
+"ec2:CreateLaunchTemplate",
+"ec2:CreateLaunchTemplateVersion",
+"ec2:ModifyLaunchTemplate",
+"ec2:DeleteLaunchTemplate",
+"ec2:CreateSnapshot",
+"ssm:CancelCommand",
+"ssm:SendCommand",
+"ssm:ListCommands",
+"ssm:DescribeInstanceInformation",
+"ssm:ListCommandInvocations",
+"ssm:GetCommandInvocation",
+"ssm:DescribeInstanceProperties",
+"ssm:GetParameters"
+```
+
 ## Using snapshot with Amazon EKS
 
 There are 3 approaches to provision Amazon EC2 nodes for Amazon EKS cluster:
