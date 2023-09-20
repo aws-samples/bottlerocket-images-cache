@@ -41,6 +41,7 @@ Options:
 -r,--region Set AWS region to build the EBS snapshot, (default: use environment variable of AWS_DEFAULT_REGION, or IMDS if running on EC2)
 -a,--ami Set SSM Parameter path for Bottlerocket ID, (default: /aws/service/bottlerocket/aws-k8s-1.27/x86_64/latest/image_id)
 -i,--instance-type Set EC2 instance type to build this snapshot, (default: m5.large)
+-R,--instance-role Name of existing IAM role for created EC2 instance, (default: Create on launching)
 -q,--quiet Suppress all outputs and output generated snapshot ID only (default: false)
 ```
 
