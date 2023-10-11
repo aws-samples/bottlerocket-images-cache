@@ -30,6 +30,11 @@ function logerror() {
     echo -e "$datestring E - $@" 1>&2;
 }
 
+function cleanup() {
+    aws cloudformation delete-stack --stack-name "Bottlerocket-ebs-snapshot"
+    log "Stack deleted."
+}
+
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
@@ -146,6 +151,13 @@ do
         until aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID &> /dev/null && log "$IMG - $PLATFORM pulled. "
         do
             sleep 5
+            if [ "$(aws ssm get-command-invocation --command-id $CMDID --instance-id $INSTANCE_ID --output text --query Status)" == "Failed" ]; then
+                REASON=$(aws ssm get-command-invocation --command-id $CMDID --instance-id $INSTANCE_ID --output text --query StandardOutputContent)
+                logerror "Image $IMG pulling failed with following output: "
+                logerror $REASON
+                cleanup
+                exit 1
+            fi
         done
     done
 done
@@ -167,8 +179,7 @@ done
 
 # destroy temporary instance
 log "[8/8] Cleanup."
-aws cloudformation delete-stack --stack-name "Bottlerocket-ebs-snapshot"
-log "Stack deleted."
+cleanup
 
 # done!
 log "--------------------------------------------------"
