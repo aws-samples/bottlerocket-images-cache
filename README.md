@@ -21,7 +21,7 @@ To demonstrate the process of caching images in EBS snapshots and launching them
 1. Set up [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html)
 2. Run the following command to clone this projects in your local environment.
     ```bash
-    git clone https://github.com/yubingjiaocn/bottlerocket-images-cache/
+    git clone https://github.com/aws-samples/bottlerocket-images-cache/
     cd bottlerocket-images-cache/
     ```
 
