@@ -80,8 +80,12 @@ This script requires the following IAM policies:
 "ssm:GetCommandInvocation",
 "ssm:DescribeInstanceProperties",
 "ssm:GetParameters",
+"kms:RetireGrant",
+"kms:CreateGrant",
+"kms:ReEncrypt*",
+"kms:GenerateDataKey*",
+"kms:Encrypt",
 "kms:DescribeKey",
-"kms:GenerateDataKey",
 "kms:Decrypt"
 ```
 
