@@ -43,6 +43,7 @@ Options:
 -i,--instance-type Set EC2 instance type to build this snapshot, (default: m5.large)
 -R,--instance-role Name of existing IAM role for created EC2 instance, (default: Create on launching)
 -q,--quiet Suppress all outputs and output generated snapshot ID only (default: false)
+-k,--kms-id Use a specific KMS Key Id to encrypt this snapshot
 ```
 
 ## Required IAM Policy
@@ -78,8 +79,13 @@ This script requires the following IAM policies:
 "ssm:ListCommandInvocations",
 "ssm:GetCommandInvocation",
 "ssm:DescribeInstanceProperties",
-"ssm:GetParameters"
+"ssm:GetParameters",
+"kms:DescribeKey",
+"kms:GenerateDataKey",
+"kms:Decrypt"
 ```
+
+The KMS actions are only required when using the `--kms-id` option.
 
 ## Using snapshot with Amazon EKS
 
