@@ -79,7 +79,12 @@ This script requires the following IAM policies:
 "ssm:ListCommandInvocations",
 "ssm:GetCommandInvocation",
 "ssm:DescribeInstanceProperties",
-"ssm:GetParameters",
+"ssm:GetParameters"
+```
+
+If you choose to encrypt the snapshot with KMS using the `--kms-id` option, the following IAM policies is required:
+
+```
 "kms:RetireGrant",
 "kms:CreateGrant",
 "kms:ReEncrypt*",
@@ -89,7 +94,17 @@ This script requires the following IAM policies:
 "kms:Decrypt"
 ```
 
-The KMS actions are only required when using the `--kms-id` option.
+If you let the script create required IAM role for you, the following IAM policies is required:
+
+```
+"iam:AttachRolePolicy",
+"iam:CreateRole"
+"iam:DeleteRole"
+"iam:DetachRolePolicy"
+"iam:ListRoles"
+"iam:ListRolePolicies"
+"iam:ListPolicies"
+```
 
 ## Using snapshot with Amazon EKS
 
@@ -102,23 +117,42 @@ You can use EBS snapshot created by the script with nodes created by all the app
 
 ### With Managed Node Group or Self managed nodes
 
-You can use a launch template to create volume from snapshot. When creating launch template, specify snapshot ID on volume with **device name** `/dev/xvdb` only.
+You can use a launch template to create volume from snapshot. When creating launch template, specify snapshot ID on volume with **device name** `/dev/xvdb` only. For detail, please refer to [Customizing managed nodes with launch templates](https://docs.aws.amazon.com/eks/latest/userguide/launch-templates.html) on Amazon EKS documentation.
 
 ### With Karpenter
 
-You can specify snapshot ID on a Karpenter node template. You should also specify AMI used when provisioning node is `BottleRocket`. Add the content on `AWSNodeTemplate`:
+You can specify snapshot ID in a Karpenter node template. You should also specify AMI used when provisioning node is `BottleRocket`. Add the content on `EC2NodeClass` (or `AWSNodeTemplate` on older release of Karpenter):
 
+`v1beta1` API:
+```yaml
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  amiFamily: Bottlerocket # Ensure OS is BottleRocket
+  blockDeviceMappings:
+    - deviceName: /dev/xvdb
+      ebs:
+        volumeSize: 50Gi
+        volumeType: gp3
+        kmsKeyID: "arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab" # Specify KMS ID if you use custom KMS key
+        snapshotID: snap-0123456789 # Specify your snapshot ID here
+```
+
+`v1alpha1` API:
 ```yaml
 apiVersion: karpenter.k8s.aws/v1alpha1
 kind: AWSNodeTemplate
 spec:
-  amiFamily: Bottlerocket # Make sure OS is BottleRocket
+  amiFamily: Bottlerocket # Ensure OS is BottleRocket
   blockDeviceMappings:
     - deviceName: /dev/xvdb # Make sure device name is /dev/xvdb
       ebs:
         volumeSize: 50Gi
         volumeType: gp3
         snapshotID: snap-0123456789 # Specify your snapshot ID here
+        kmsKeyID: "arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab" # Specify KMS ID if you use custom KMS key
 ```
 
 ## Security
