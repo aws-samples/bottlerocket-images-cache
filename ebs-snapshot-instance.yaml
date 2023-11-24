@@ -17,9 +17,14 @@ Parameters:
     Type: String
     Description: "Name of IAM Role used in instance"
     Default: NONE
+  KMSId:
+    Type: String
+    Description: "Id of the KMS Key used for the snapshot"
+    Default: NONE
 
 Conditions:
   CreateNewIAMRole: !Equals [!Ref InstanceRole, NONE]
+  UseCustomKMSId: !Not [!Equals [!Ref KMSId, NONE]]
 
 Resources:
   BottlerocketNodeRole:
@@ -70,6 +75,12 @@ Resources:
           Ebs:
             VolumeSize: 50
             VolumeType: gp3
+            Encrypted: true
+            KmsKeyId: 
+              Fn::If:
+                - UseCustomKMSId
+                - !Ref KMSId
+                - !Ref AWS::NoValue
             Throughput: 1000
             Iops: 4000
             DeleteOnTermination: true
