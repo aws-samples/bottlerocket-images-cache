@@ -21,6 +21,10 @@ Parameters:
     Type: String
     Description: "Id of the KMS Key used for the snapshot"
     Default: NONE
+  SnapshotSize:
+    Type: Number
+    Description: "Size of the target snapshot"
+    Default: 50
 
 Conditions:
   CreateNewIAMRole: !Equals [!Ref InstanceRole, NONE]
@@ -73,7 +77,7 @@ Resources:
             DeleteOnTermination: true
         - DeviceName: /dev/xvdb
           Ebs:
-            VolumeSize: 50
+            VolumeSize: !Ref SnapshotSize
             VolumeType: gp3
             Encrypted: true
             KmsKeyId: 
