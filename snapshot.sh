@@ -13,6 +13,7 @@ function print_help {
     echo "-a,--ami Set SSM Parameter path for Bottlerocket ID, (default: /aws/service/bottlerocket/aws-k8s-1.27/x86_64/latest/image_id)"
     echo "-i,--instance-type Set EC2 instance type to build this snapshot, (default: m5.large)"
     echo "-k,--kms-id Use a specific KMS Key Id to encrypt this snapshot"
+    echo "-s,--snapshot-size Use a specific volume size (in GiB) for this snapshot. (default: 50)"
     echo "-R,--instance-role Name of existing IAM role for created EC2 instance, (default: Create on launching)"
     echo "-q,--quiet Suppress all outputs and output generated snapshot ID only (default: false)"
 }
@@ -63,6 +64,11 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
+        -s|--snapshot-size)
+            SNAPSHOT_SIZE=$2
+            shift
+            shift
+            ;;
         -R|--instance-role)
             INSTANCE_ROLE=$2
             shift
@@ -89,6 +95,7 @@ AMI_ID=${AMI_ID:-/aws/service/bottlerocket/aws-k8s-1.27/x86_64/latest/image_id}
 INSTANCE_TYPE=${INSTANCE_TYPE:-m5.large}
 INSTANCE_ROLE=${INSTANCE_ROLE:-NONE}
 KMS_ID=${KMS_ID:-NONE}
+SNAPSHOT_SIZE=${SNAPSHOT_SIZE:-50}
 CTR_CMD="apiclient exec admin sheltie ctr -a /run/containerd/containerd.sock -n k8s.io"
 
 if [ -z "${AWS_DEFAULT_REGION}" ]; then
@@ -111,7 +118,7 @@ export AWS_PAGER=""
 log "[1/8] Deploying EC2 CFN stack ..."
 CFN_STACK_NAME="Bottlerocket-ebs-snapshot"
 aws cloudformation deploy --stack-name $CFN_STACK_NAME --template-file ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
-    --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE KMSId=$KMS_ID > /dev/null
+    --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE KMSId=$KMS_ID SnapshotSize=$SNAPSHOT_SIZE > /dev/null
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name $CFN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
 # wait for SSM ready
