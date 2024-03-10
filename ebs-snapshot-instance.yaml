@@ -17,6 +17,10 @@ Parameters:
     Type: String
     Description: "Name of IAM Role used in instance"
     Default: NONE
+  Encrypt:
+    Type: String
+    Description: "Encrypt the AMI"
+    Default: NONE
   KMSId:
     Type: String
     Description: "Id of the KMS Key used for the snapshot"
@@ -29,6 +33,7 @@ Parameters:
 Conditions:
   CreateNewIAMRole: !Equals [!Ref InstanceRole, NONE]
   UseCustomKMSId: !Not [!Equals [!Ref KMSId, NONE]]
+  Encrypt: !Not [!Equals [!Ref Encrypt, NONE]]
 
 Resources:
   BottlerocketNodeRole:
@@ -79,8 +84,12 @@ Resources:
           Ebs:
             VolumeSize: !Ref SnapshotSize
             VolumeType: gp3
-            Encrypted: true
-            KmsKeyId: 
+            Encrypted:
+              Fn::If:
+                - Encrypt
+                - true
+                - false
+            KmsKeyId:
               Fn::If:
                 - UseCustomKMSId
                 - !Ref KMSId

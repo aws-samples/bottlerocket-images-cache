@@ -43,7 +43,9 @@ Options:
 -i,--instance-type Set EC2 instance type to build this snapshot, (default: m5.large)
 -R,--instance-role Name of existing IAM role for created EC2 instance, (default: Create on launching)
 -q,--quiet Suppress all outputs and output generated snapshot ID only (default: false)
--k,--kms-id Use a specific KMS Key Id to encrypt this snapshot
+-e,--encrypt Encrypt the generated snapshot. (default: false)
+-k,--kms-id Use a specific KMS Key Id to encrypt this snapshot, should use together with -e
+-s,--snapshot-size Use a specific volume size (in GiB) for this snapshot. (default: 50)
 ```
 
 ## Required IAM Policy
@@ -82,7 +84,7 @@ This script requires the following IAM policies:
 "ssm:GetParameters"
 ```
 
-If you choose to encrypt the snapshot with KMS using the `--kms-id` option, the following IAM policies is required:
+If you choose to encrypt the snapshot with KMS using the `--encrypt` and/or `--kms-id` option, the following IAM policies is required:
 
 ```
 "kms:RetireGrant",
