@@ -107,6 +107,7 @@ INSTANCE_ROLE=${INSTANCE_ROLE:-NONE}
 ENCRYPT=${ENCRYPT:-NONE}
 KMS_ID=${KMS_ID:-NONE}
 SNAPSHOT_SIZE=${SNAPSHOT_SIZE:-50}
+SCRIPTPATH=$(dirname "$0")
 CTR_CMD="apiclient exec admin sheltie ctr -a /run/containerd/containerd.sock -n k8s.io"
 
 if [ -z "${AWS_DEFAULT_REGION}" ]; then
@@ -128,7 +129,7 @@ export AWS_PAGER=""
 # launch EC2
 log "[1/8] Deploying EC2 CFN stack ..."
 CFN_STACK_NAME="Bottlerocket-ebs-snapshot"
-aws cloudformation deploy --stack-name $CFN_STACK_NAME --template-file ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
+aws cloudformation deploy --stack-name $CFN_STACK_NAME --template-file $SCRIPTPATH/ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
     --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE Encrypt=$ENCRYPT KMSId=$KMS_ID SnapshotSize=$SNAPSHOT_SIZE > /dev/null
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name $CFN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
