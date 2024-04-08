@@ -1,7 +1,8 @@
+#!/bin/bash
+
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-#!/bin/bash
 set -e
 
 function print_help {
@@ -23,18 +24,18 @@ QUIET=false
 
 function log() {
     if [ "$QUIET" = false ]; then
-        datestring=`date +"%Y-%m-%d %H:%M:%S"`
-        echo -e "$datestring I - $@"
+        datestring=$(date +"%Y-%m-%d %H:%M:%S")
+        echo -e "$datestring I - $*"
     fi
 }
 
 function logerror() {
-    datestring=`date +"%Y-%m-%d %H:%M:%S"`
-    echo -e "$datestring E - $@" 1>&2;
+    datestring=$(date +"%Y-%m-%d %H:%M:%S")
+    echo -e "$datestring E - $*" 1>&2;
 }
 
 function cleanup() {
-    aws cloudformation delete-stack --stack-name "Bottlerocket-ebs-snapshot"
+    aws cloudformation delete-stack --stack-name $1
     log "Stack deleted."
 }
 
@@ -128,7 +129,8 @@ export AWS_PAGER=""
 
 # launch EC2
 log "[1/8] Deploying EC2 CFN stack ..."
-CFN_STACK_NAME="Bottlerocket-ebs-snapshot"
+RAND=$(echo $RANDOM | md5sum | head -c 4)
+CFN_STACK_NAME="Bottlerocket-ebs-snapshot-$RAND"
 aws cloudformation deploy --stack-name $CFN_STACK_NAME --template-file $SCRIPTPATH/ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
     --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE Encrypt=$ENCRYPT KMSId=$KMS_ID SnapshotSize=$SNAPSHOT_SIZE > /dev/null
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name $CFN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
@@ -164,7 +166,7 @@ log "[5/8] Pulling images:"
 for IMG in "${IMAGES_LIST[@]}"
 do
     ECR_REGION=$(echo $IMG | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
-    [ ! -z "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
+    [ -n "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
     for PLATFORM in amd64 arm64
     do
         log "Pulling $IMG - $PLATFORM ... "
@@ -181,7 +183,7 @@ do
                 REASON=$(aws ssm get-command-invocation --command-id $CMDID --instance-id $INSTANCE_ID --output text --query StandardOutputContent)
                 logerror "Image $IMG pulling failed with following output: "
                 logerror $REASON
-                cleanup
+                cleanup $CFN_STACK_NAME
                 exit 1
             fi
         done
@@ -205,7 +207,7 @@ done
 
 # destroy temporary instance
 log "[8/8] Cleanup."
-cleanup
+cleanup $CFN_STACK_NAME
 
 # done!
 log "--------------------------------------------------"
