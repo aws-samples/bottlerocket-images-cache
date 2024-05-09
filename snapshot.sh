@@ -173,7 +173,7 @@ do
         COMMAND="$CTR_CMD images pull --label io.cri-containerd.image=managed --platform $PLATFORM $IMG $ECRPWD "
         #echo $COMMAND
         CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
-            --document-name "AWS-RunShellScript" --comment "Pull Images" \
+            --document-name "AWS-RunShellScript" --comment "Pull Image $IMG - $PLATFORM" \
             --parameters commands="$COMMAND" \
             --query "Command.CommandId" --output text)
         until aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID &> /dev/null && log "$IMG - $PLATFORM pulled. "
