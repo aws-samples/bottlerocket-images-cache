@@ -17,21 +17,23 @@ function print_help {
     echo "-k,--kms-id Use a specific KMS Key Id to encrypt this snapshot, should use together with -e"
     echo "-s,--snapshot-size Use a specific volume size (in GiB) for this snapshot. (default: 50)"
     echo "-R,--instance-role Name of existing IAM role for created EC2 instance. (default: Create on launching)"
-    echo "-q,--quiet Suppress all outputs and output generated snapshot ID only. (default: false)"
+    echo "-q,--quiet Redirect output to stderr and output generated snapshot ID to stdout only. (default: false)"
 }
 
 QUIET=false
 
 function log() {
+    datestring=$(date +"%Y-%m-%d %H:%M:%S")
     if [ "$QUIET" = false ]; then
-        datestring=$(date +"%Y-%m-%d %H:%M:%S")
         echo -e "$datestring I - $*"
+    else
+        echo -e "$datestring I - $*" >&2
     fi
 }
 
 function logerror() {
     datestring=$(date +"%Y-%m-%d %H:%M:%S")
-    echo -e "$datestring E - $*" 1>&2;
+    echo -e "$datestring E - $*" >&2;
 }
 
 function cleanup() {
@@ -89,7 +91,7 @@ while [[ $# -gt 0 ]]; do
             QUIET=true
             shift
             ;;
-        *)    # unknown option
+        *)
             POSITIONAL+=("$1") # save it in an array for later
             shift # past argument
             ;;
