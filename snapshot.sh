@@ -201,7 +201,7 @@ aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID" > /dev/null && log "
 # create EBS snapshot
 log "[7/8] Creating snapshot ... "
 DATA_VOLUME_ID=$(aws ec2 describe-instances  --instance-id $INSTANCE_ID --query "Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName=='/dev/xvdb'].Ebs.VolumeId" --output text)
-SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot with $IMAGES" --query "SnapshotId" --output text)
+SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot with ${IMAGES:0:200}" --query "SnapshotId" --output text)
 until aws ec2 wait snapshot-completed --snapshot-ids "$SNAPSHOT_ID" &> /dev/null && log "Snapshot $SNAPSHOT_ID generated."
 do
     sleep 5
