@@ -31,11 +31,11 @@ Parameters:
   SecurityGroupId:
     Type: String
     Description: "Optional Security Group ID. If not provided, the default VPC security group will be used."
-    Default: ""
+    Default: NONE
   SubnetId:
     Type: String
     Description: "Optional Subnet ID. If not provided, a subnet from the default VPC will be used."
-    Default: ""
+    Default: NONE
   AssociatePublicIpAddress:
     Type: String
     Description: "Whether to associate a public IP address to the instance"
