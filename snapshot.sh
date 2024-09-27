@@ -18,9 +18,13 @@ function print_help {
     echo "-s,--snapshot-size Use a specific volume size (in GiB) for this snapshot. (default: 50)"
     echo "-R,--instance-role Name of existing IAM role for created EC2 instance. (default: Create on launching)"
     echo "-q,--quiet Redirect output to stderr and output generated snapshot ID to stdout only. (default: false)"
+    echo "-sg,--security-group-id Set a specific Security Group ID for the instance. (default: use default VPC security group)"
+    echo "-sn,--subnet-id Set a specific Subnet ID for the instance. (default: use default VPC subnet)"
+    echo "-p,--public-ip Associate a public IP address with the instance. (default: true)"
 }
 
 QUIET=false
+ASSOCIATE_PUBLIC_IP=true
 
 function log() {
     datestring=$(date +"%Y-%m-%d %H:%M:%S")
@@ -91,6 +95,20 @@ while [[ $# -gt 0 ]]; do
             QUIET=true
             shift
             ;;
+        -sg|--security-group-id)
+            SECURITY_GROUP_ID=$2
+            shift
+            shift
+            ;;
+        -sn|--subnet-id)
+            SUBNET_ID=$2
+            shift
+            shift
+            ;;
+        -p|--public-ip)
+            ASSOCIATE_PUBLIC_IP=true
+            shift
+            ;;
         *)
             POSITIONAL+=("$1") # save it in an array for later
             shift # past argument
@@ -110,6 +128,8 @@ INSTANCE_ROLE=${INSTANCE_ROLE:-NONE}
 ENCRYPT=${ENCRYPT:-NONE}
 KMS_ID=${KMS_ID:-NONE}
 SNAPSHOT_SIZE=${SNAPSHOT_SIZE:-50}
+SECURITY_GROUP_ID=${SECURITY_GROUP_ID:-NONE}
+SUBNET_ID=${SUBNET_ID:-NONE}
 SCRIPTPATH=$(dirname "$0")
 CTR_CMD="apiclient exec admin sheltie ctr -a /run/containerd/containerd.sock -n k8s.io"
 
@@ -133,8 +153,13 @@ export AWS_PAGER=""
 log "[1/8] Deploying EC2 CFN stack ..."
 RAND=$(echo $RANDOM | md5sum | head -c 4)
 CFN_STACK_NAME="Bottlerocket-ebs-snapshot-$RAND"
-aws cloudformation deploy --stack-name $CFN_STACK_NAME --template-file $SCRIPTPATH/ebs-snapshot-instance.yaml --capabilities CAPABILITY_NAMED_IAM \
-    --parameter-overrides AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE Encrypt=$ENCRYPT KMSId=$KMS_ID SnapshotSize=$SNAPSHOT_SIZE > /dev/null
+CFN_PARAMS="AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE Encrypt=$ENCRYPT KMSId=$KMS_ID SnapshotSize=$SNAPSHOT_SIZE SecurityGroupId=$SECURITY_GROUP_ID SubnetId=$SUBNET_ID AssociatePublicIpAddress=$ASSOCIATE_PUBLIC_IP"
+
+aws cloudformation deploy \
+  --stack-name $CFN_STACK_NAME \
+  --template-file $SCRIPTPATH/ebs-snapshot-instance.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+    --parameter-overrides $CFN_PARAMS > /dev/null
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name $CFN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
 # wait for SSM ready

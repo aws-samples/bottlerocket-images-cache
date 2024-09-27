@@ -1,8 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
-
 AWSTemplateFormatVersion: 2010-09-09
-Description: Bottlerocket instance to snapshot data volume.
+Description: Bottlerocket instance to snapshot data volume with configurable network settings.
 
 Parameters:
   AmiID:
@@ -29,11 +28,28 @@ Parameters:
     Type: Number
     Description: "Size of the target snapshot"
     Default: 50
+  SecurityGroupId:
+    Type: String
+    Description: "Optional Security Group ID. If not provided, the default VPC security group will be used."
+    Default: ""
+  SubnetId:
+    Type: String
+    Description: "Optional Subnet ID. If not provided, a subnet from the default VPC will be used."
+    Default: ""
+  AssociatePublicIpAddress:
+    Type: String
+    Description: "Whether to associate a public IP address to the instance"
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
 
 Conditions:
   CreateNewIAMRole: !Equals [!Ref InstanceRole, NONE]
   UseCustomKMSId: !Not [!Equals [!Ref KMSId, NONE]]
   Encrypt: !Not [!Equals [!Ref Encrypt, NONE]]
+  UseCustomSecurityGroup: !Not [!Equals [!Ref SecurityGroupId, NONE]]
+  UseCustomSubnet: !Not [!Equals [!Ref SubnetId, NONE]]
 
 Resources:
   BottlerocketNodeRole:
@@ -97,6 +113,12 @@ Resources:
             Throughput: 1000
             Iops: 4000
             DeleteOnTermination: true
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: !Ref AssociatePublicIpAddress
+            DeviceIndex: "0"
+            Groups:
+              - !If [UseCustomSecurityGroup, !Ref SecurityGroupId, !Ref 'AWS::NoValue']
+            SubnetId: !If [UseCustomSubnet, !Ref SubnetId, !Ref 'AWS::NoValue']
 
   BottlerocketInstance:
     Type: AWS::EC2::Instance
@@ -104,7 +126,6 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref BottlerocketLaunchTemplate
         Version: !GetAtt BottlerocketLaunchTemplate.LatestVersionNumber
-
 
 Outputs:
   InstanceId:
