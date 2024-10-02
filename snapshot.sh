@@ -151,7 +151,7 @@ export AWS_PAGER=""
 
 # launch EC2
 log "[1/8] Deploying EC2 CFN stack ..."
-RAND=$(echo $RANDOM | md5sum | head -c 4)
+RAND=$(od -An -N2 -i /dev/urandom | tr -d ' ' | cut -c1-4)
 CFN_STACK_NAME="Bottlerocket-ebs-snapshot-$RAND"
 CFN_PARAMS="AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE Encrypt=$ENCRYPT KMSId=$KMS_ID SnapshotSize=$SNAPSHOT_SIZE SecurityGroupId=$SECURITY_GROUP_ID SubnetId=$SUBNET_ID AssociatePublicIpAddress=$ASSOCIATE_PUBLIC_IP"
 
