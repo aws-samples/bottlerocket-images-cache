@@ -108,6 +108,7 @@ while [[ $# -gt 0 ]]; do
         -p|--public-ip)
             ASSOCIATE_PUBLIC_IP=true
             shift
+            shift
             ;;
         *)
             POSITIONAL+=("$1") # save it in an array for later
