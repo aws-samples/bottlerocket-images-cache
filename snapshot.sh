@@ -106,7 +106,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -p|--public-ip)
-            ASSOCIATE_PUBLIC_IP=true
+            ASSOCIATE_PUBLIC_IP=$2
             shift
             shift
             ;;
@@ -131,6 +131,7 @@ KMS_ID=${KMS_ID:-NONE}
 SNAPSHOT_SIZE=${SNAPSHOT_SIZE:-50}
 SECURITY_GROUP_ID=${SECURITY_GROUP_ID:-NONE}
 SUBNET_ID=${SUBNET_ID:-NONE}
+ASSOCIATE_PUBLIC_IP=${ASSOCIATE_PUBLIC_IP:-true}
 SCRIPTPATH=$(dirname "$0")
 CTR_CMD="apiclient exec admin sheltie ctr -a /run/containerd/containerd.sock -n k8s.io"
 
