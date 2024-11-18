@@ -10,6 +10,7 @@ function print_help {
     echo "Build EBS snapshot for Bottlerocket data volume with cached container images"
     echo "Options:"
     echo "-h,--help Print this help."
+    echo "-A, --arch Set image architectures to pull (comma-separated). (default: amd64)"
     echo "-r,--region Set AWS region to build the EBS snapshot. (default: use environment variable of AWS_DEFAULT_REGION or IMDS)"
     echo "-a,--ami Set SSM Parameter path for Bottlerocket ID. (default: /aws/service/bottlerocket/aws-k8s-1.27/x86_64/latest/image_id)"
     echo "-i,--instance-type Set EC2 instance type to build this snapshot. (default: m5.large)"
@@ -110,6 +111,11 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
+        -A|--arch)
+            ARCHITECTURES=$2
+            shift
+            shift
+            ;;
         *)
             POSITIONAL+=("$1") # save it in an array for later
             shift # past argument
@@ -132,6 +138,7 @@ SNAPSHOT_SIZE=${SNAPSHOT_SIZE:-50}
 SECURITY_GROUP_ID=${SECURITY_GROUP_ID:-NONE}
 SUBNET_ID=${SUBNET_ID:-NONE}
 ASSOCIATE_PUBLIC_IP=${ASSOCIATE_PUBLIC_IP:-true}
+ARCHITECTURES=${ARCHITECTURES:-amd64}
 SCRIPTPATH=$(dirname "$0")
 CTR_CMD="apiclient exec admin sheltie ctr -a /run/containerd/containerd.sock -n k8s.io"
 
@@ -146,6 +153,7 @@ if [ -z "${IMAGES}" ]; then
 fi
 
 IMAGES_LIST=(`echo $IMAGES | sed 's/,/\n/g'`)
+ARCH_LIST=(`echo $ARCHITECTURES | sed 's/,/\n/g'`)
 export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
 
 ##############################################################################################
@@ -196,7 +204,7 @@ for IMG in "${IMAGES_LIST[@]}"
 do
     ECR_REGION=$(echo $IMG | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
     [ -n "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
-    for PLATFORM in amd64 arm64
+    for PLATFORM in "${ARCH_LIST[@]}"
     do
         log "Pulling $IMG - $PLATFORM ... "
         COMMAND="$CTR_CMD images pull --label io.cri-containerd.image=managed --platform $PLATFORM $IMG $ECRPWD "
