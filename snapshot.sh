@@ -161,16 +161,18 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}"
 export AWS_PAGER=""
 
 # launch EC2
-log "[1/8] Deploying EC2 CFN stack ..."
 RAND=$(od -An -N2 -i /dev/urandom | tr -d ' ' | cut -c1-4)
 CFN_STACK_NAME="Bottlerocket-ebs-snapshot-$RAND"
+log "[1/8] Deploying EC2 CFN stack $CFN_STACK_NAME ..."
 CFN_PARAMS="AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE Encrypt=$ENCRYPT KMSId=$KMS_ID SnapshotSize=$SNAPSHOT_SIZE SecurityGroupId=$SECURITY_GROUP_ID SubnetId=$SUBNET_ID AssociatePublicIpAddress=$ASSOCIATE_PUBLIC_IP"
+
+# log $CFN_PARAMS
 
 aws cloudformation deploy \
   --stack-name "$CFN_STACK_NAME" \
   --template-file "$SCRIPTPATH/ebs-snapshot-instance.yaml" \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides "$CFN_PARAMS" > /dev/null
+  --parameter-overrides $CFN_PARAMS > /dev/null
 
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name "$CFN_STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
@@ -209,7 +211,7 @@ do
     for PLATFORM in "${ARCH_LIST[@]}"
     do
         log "Pulling $IMG - $PLATFORM ... "
-        COMMAND="$CTR_CMD images pull --label io.cri-containerd.image=managed --platform $PLATFORM $IMG $ECRPWD "
+        COMMAND="$CTR_CMD images pull --label io.cri-containerd.image=managed --platform $PLATFORM $IMG $ECRPWD > /dev/null"
         CMDID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" --comment "Pull Image $IMG - $PLATFORM" \
             --parameters commands="$COMMAND" \
