@@ -38,11 +38,11 @@ function log() {
 
 function logerror() {
     datestring=$(date +"%Y-%m-%d %H:%M:%S")
-    echo -e "$datestring E - $*" >&2;
+    echo -e "$datestring E - $*" >&2
 }
 
 function cleanup() {
-    aws cloudformation delete-stack --stack-name $1
+    aws cloudformation delete-stack --stack-name "$1"
     log "Stack deleted."
 }
 
@@ -54,17 +54,17 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
         -r|--region)
-            AWS_DEFAULT_REGION=$2
+            AWS_DEFAULT_REGION="$2"
             shift
             shift
             ;;
         -a|--ami)
-            AMI_ID=$2
+            AMI_ID="$2"
             shift
             shift
             ;;
         -i|--instance-type)
-            INSTANCE_TYPE=$2
+            INSTANCE_TYPE="$2"
             shift
             shift
             ;;
@@ -73,8 +73,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -k|--kms-id)
-            if [ -z $ENCRYPT ] && [[ $ENCRYPT == true ]]; then
-              KMS_ID=$2
+            if [ -n "$ENCRYPT" ] && [[ $ENCRYPT == true ]]; then
+              KMS_ID="$2"
             else
               logerror "KMS Key should only be specified when snapshot is encrypted. (-e)"
               exit 2
@@ -83,12 +83,12 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -s|--snapshot-size)
-            SNAPSHOT_SIZE=$2
+            SNAPSHOT_SIZE="$2"
             shift
             shift
             ;;
         -R|--instance-role)
-            INSTANCE_ROLE=$2
+            INSTANCE_ROLE="$2"
             shift
             shift
             ;;
@@ -97,22 +97,22 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -sg|--security-group-id)
-            SECURITY_GROUP_ID=$2
+            SECURITY_GROUP_ID="$2"
             shift
             shift
             ;;
         -sn|--subnet-id)
-            SUBNET_ID=$2
+            SUBNET_ID="$2"
             shift
             shift
             ;;
         -p|--public-ip)
-            ASSOCIATE_PUBLIC_IP=$2
+            ASSOCIATE_PUBLIC_IP="$2"
             shift
             shift
             ;;
         -A|--arch)
-            ARCHITECTURES=$2
+            ARCHITECTURES="$2"
             shift
             shift
             ;;
@@ -152,9 +152,10 @@ if [ -z "${IMAGES}" ]; then
     exit 1
 fi
 
-IMAGES_LIST=(`echo $IMAGES | sed 's/,/\n/g'`)
-ARCH_LIST=(`echo $ARCHITECTURES | sed 's/,/\n/g'`)
-export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+# Use read -a to create arrays from comma-separated strings
+IFS=',' read -r -a IMAGES_LIST <<< "$IMAGES"
+IFS=',' read -r -a ARCH_LIST <<< "$ARCHITECTURES"
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}"
 
 ##############################################################################################
 export AWS_PAGER=""
@@ -166,14 +167,15 @@ CFN_STACK_NAME="Bottlerocket-ebs-snapshot-$RAND"
 CFN_PARAMS="AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROLE Encrypt=$ENCRYPT KMSId=$KMS_ID SnapshotSize=$SNAPSHOT_SIZE SecurityGroupId=$SECURITY_GROUP_ID SubnetId=$SUBNET_ID AssociatePublicIpAddress=$ASSOCIATE_PUBLIC_IP"
 
 aws cloudformation deploy \
-  --stack-name $CFN_STACK_NAME \
-  --template-file $SCRIPTPATH/ebs-snapshot-instance.yaml \
+  --stack-name "$CFN_STACK_NAME" \
+  --template-file "$SCRIPTPATH/ebs-snapshot-instance.yaml" \
   --capabilities CAPABILITY_NAMED_IAM \
-    --parameter-overrides $CFN_PARAMS > /dev/null
-INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name $CFN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
+  --parameter-overrides "$CFN_PARAMS" > /dev/null
+
+INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name "$CFN_STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
 # wait for SSM ready
-log  "[2/8] Launching SSM ."
+log "[2/8] Launching SSM ."
 while [[ $(aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text) != "Online" ]]
 do
    sleep 5
@@ -182,61 +184,59 @@ log "SSM launched in instance $INSTANCE_ID."
 
 # stop kubelet.service
 log "[3/8] Stopping kubelet.service .."
-CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
+CMDID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" --comment "Stop kubelet" \
     --parameters commands="apiclient exec admin sheltie systemctl stop kubelet" \
     --query "Command.CommandId" --output text)
-aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID > /dev/null
+aws ssm wait command-executed --command-id "$CMDID" --instance-id "$INSTANCE_ID" > /dev/null
 log "Kubelet service stopped."
 
 # cleanup existing images
 log "[4/8] Cleanup existing images .."
-CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
+CMDID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" --comment "Cleanup existing images" \
     --parameters commands="$CTR_CMD images rm \$($CTR_CMD images ls -q)" \
     --query "Command.CommandId" --output text)
-aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID > /dev/null
+aws ssm wait command-executed --command-id "$CMDID" --instance-id "$INSTANCE_ID" > /dev/null
 log "Existing images cleaned"
 
 # pull images
 log "[5/8] Pulling images:"
 for IMG in "${IMAGES_LIST[@]}"
 do
-    ECR_REGION=$(echo $IMG | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
-    [ -n "$ECR_REGION" ] && ECRPWD="--u AWS:"$(aws ecr get-login-password --region $ECR_REGION) || ECRPWD=""
+    ECR_REGION=$(echo "$IMG" | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
+    [ -n "$ECR_REGION" ] && ECRPWD="--u AWS:$(aws ecr get-login-password --region "$ECR_REGION")" || ECRPWD=""
     for PLATFORM in "${ARCH_LIST[@]}"
     do
         log "Pulling $IMG - $PLATFORM ... "
         COMMAND="$CTR_CMD images pull --label io.cri-containerd.image=managed --platform $PLATFORM $IMG $ECRPWD "
-        #echo $COMMAND
-        CMDID=$(aws ssm send-command --instance-ids $INSTANCE_ID \
+        CMDID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" --comment "Pull Image $IMG - $PLATFORM" \
             --parameters commands="$COMMAND" \
             --query "Command.CommandId" --output text)
-        until aws ssm wait command-executed --command-id "$CMDID" --instance-id $INSTANCE_ID &> /dev/null && log "$IMG - $PLATFORM pulled. "
+        until aws ssm wait command-executed --command-id "$CMDID" --instance-id "$INSTANCE_ID" &> /dev/null && log "$IMG - $PLATFORM pulled. "
         do
             sleep 5
-            if [ "$(aws ssm get-command-invocation --command-id $CMDID --instance-id $INSTANCE_ID --output text --query Status)" == "Failed" ]; then
-                REASON=$(aws ssm get-command-invocation --command-id $CMDID --instance-id $INSTANCE_ID --output text --query StandardOutputContent)
+            if [ "$(aws ssm get-command-invocation --command-id "$CMDID" --instance-id "$INSTANCE_ID" --output text --query Status)" == "Failed" ]; then
+                REASON=$(aws ssm get-command-invocation --command-id "$CMDID" --instance-id "$INSTANCE_ID" --output text --query StandardOutputContent)
                 logerror "Image $IMG pulling failed with following output: "
-                logerror $REASON
-                cleanup $CFN_STACK_NAME
+                logerror "$REASON"
+                cleanup "$CFN_STACK_NAME"
                 exit 1
             fi
         done
     done
 done
 
-
 # stop EC2
 log "[6/8] Stopping instance ... "
-aws ec2 stop-instances --instance-ids $INSTANCE_ID --output text > /dev/null
+aws ec2 stop-instances --instance-ids "$INSTANCE_ID" --output text > /dev/null
 aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID" > /dev/null && log "Instance $INSTANCE_ID stopped"
 
 # create EBS snapshot
 log "[7/8] Creating snapshot ... "
-DATA_VOLUME_ID=$(aws ec2 describe-instances  --instance-id $INSTANCE_ID --query "Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName=='/dev/xvdb'].Ebs.VolumeId" --output text)
-SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id $DATA_VOLUME_ID --description "Bottlerocket Data Volume snapshot with ${IMAGES:0:200}" --query "SnapshotId" --output text)
+DATA_VOLUME_ID=$(aws ec2 describe-instances --instance-id "$INSTANCE_ID" --query "Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName=='/dev/xvdb'].Ebs.VolumeId" --output text)
+SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id "$DATA_VOLUME_ID" --description "Bottlerocket Data Volume snapshot with ${IMAGES:0:200}" --query "SnapshotId" --output text)
 until aws ec2 wait snapshot-completed --snapshot-ids "$SNAPSHOT_ID" &> /dev/null && log "Snapshot $SNAPSHOT_ID generated."
 do
     sleep 5
@@ -244,7 +244,7 @@ done
 
 # destroy temporary instance
 log "[8/8] Cleanup."
-cleanup $CFN_STACK_NAME
+cleanup "$CFN_STACK_NAME"
 
 # done!
 log "--------------------------------------------------"
