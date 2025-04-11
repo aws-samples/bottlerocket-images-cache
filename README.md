@@ -48,6 +48,7 @@ Options:
 -q,--quiet Redirect output to stderr and output generated snapshot ID to stdout only. (default: false)
 -sg,--security-group-id Set a specific Security Group ID for the instance. (default: use default VPC security group)
 -sn,--subnet-id Set a specific Subnet ID for the instance. (default: use default VPC subnet)
+-op,--output-parameter-name Set the SSM parameter name to store the generated snapshot ID. (default: NONE)
 -p,--public-ip Associate a public IP address with the instance. (default: true)
 ```
 
@@ -69,6 +70,7 @@ This script requires the following IAM policies:
 "ec2:StopInstances",
 "ec2:StartInstances",
 "ec2:CreateVolume",
+"ec2:CreateTags",
 "ec2:AssociateIamInstanceProfile",
 "ec2:ReplaceIamInstanceProfileAssociation",
 "ec2:DisassociateIamInstanceProfile",
@@ -109,6 +111,12 @@ If you let the script create required IAM role for you, the following IAM polici
 "iam:ListRoles"
 "iam:ListRolePolicies"
 "iam:ListPolicies"
+```
+
+If you choose to write the snapshot ID to SSM parameter store, the following IAM policies is required:
+
+```
+"ssm:PutParameter"
 ```
 
 ## Using snapshot with Amazon EKS
