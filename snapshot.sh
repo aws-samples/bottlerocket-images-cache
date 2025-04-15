@@ -21,6 +21,7 @@ function print_help {
     echo "-q,--quiet Redirect output to stderr and output generated snapshot ID to stdout only. (default: false)"
     echo "-sg,--security-group-id Set a specific Security Group ID for the instance. (default: use default VPC security group)"
     echo "-sn,--subnet-id Set a specific Subnet ID for the instance. (default: use default VPC subnet)"
+    echo "-op,--output-parameter-name Set the SSM parameter name to store the generated snapshot ID. (default: NONE)"
     echo "-p,--public-ip Associate a public IP address with the instance. (default: true)"
 }
 
@@ -111,6 +112,11 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
+        -op|--output-parameter-name)
+            OUTPUT_PARAMETER_NAME="$2"
+            shift
+            shift
+            ;;
         -A|--arch)
             ARCHITECTURES="$2"
             shift
@@ -138,6 +144,7 @@ SNAPSHOT_SIZE=${SNAPSHOT_SIZE:-50}
 SECURITY_GROUP_ID=${SECURITY_GROUP_ID:-NONE}
 SUBNET_ID=${SUBNET_ID:-NONE}
 ASSOCIATE_PUBLIC_IP=${ASSOCIATE_PUBLIC_IP:-true}
+OUTPUT_PARAMETER_NAME=${OUTPUT_PARAMETER_NAME:-NONE}
 ARCHITECTURES=${ARCHITECTURES:-amd64}
 SCRIPTPATH=$(dirname "$0")
 CTR_CMD="apiclient exec admin sheltie ctr -a /run/containerd/containerd.sock -n k8s.io"
@@ -211,9 +218,9 @@ do
     for PLATFORM in "${ARCH_LIST[@]}"
     do
         log "Pulling $IMG - $PLATFORM ... "
-        COMMAND="$CTR_CMD images pull --label io.cri-containerd.image=managed --platform $PLATFORM $IMG $ECRPWD > /dev/null"
+        COMMAND="$CTR_CMD images pull --label io.cri-containerd.image=managed --platform $PLATFORM $IMG $ECRPWD"
         CMDID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" --comment "Pull Image $IMG - $PLATFORM" \
+            --document-name "AWS-RunShellScript" --comment "Pull Image ${IMG:0:75} - $PLATFORM" \
             --parameters commands="$COMMAND" \
             --query "Command.CommandId" --output text)
         until aws ssm wait command-executed --command-id "$CMDID" --instance-id "$INSTANCE_ID" &> /dev/null && log "$IMG - $PLATFORM pulled. "
@@ -238,7 +245,7 @@ aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID" > /dev/null && log "
 # create EBS snapshot
 log "[7/8] Creating snapshot ... "
 DATA_VOLUME_ID=$(aws ec2 describe-instances --instance-id "$INSTANCE_ID" --query "Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName=='/dev/xvdb'].Ebs.VolumeId" --output text)
-SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id "$DATA_VOLUME_ID" --description "Bottlerocket Data Volume snapshot with ${IMAGES:0:200}" --query "SnapshotId" --output text)
+SNAPSHOT_ID=$(aws ec2 create-snapshot --volume-id "$DATA_VOLUME_ID" --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=Bottlerocket Data Volume}]' --description "Bottlerocket Data Volume snapshot with ${IMAGES:0:200}" --query "SnapshotId" --output text)
 until aws ec2 wait snapshot-completed --snapshot-ids "$SNAPSHOT_ID" &> /dev/null && log "Snapshot $SNAPSHOT_ID generated."
 do
     sleep 5
@@ -247,6 +254,12 @@ done
 # destroy temporary instance
 log "[8/8] Cleanup."
 cleanup "$CFN_STACK_NAME"
+
+# write snapshot-id to parameter store
+if [ "$OUTPUT_PARAMETER_NAME" != "NONE" ]; then
+    log "Updating SSM parameter $OUTPUT_PARAMETER_NAME"
+    aws ssm put-parameter --name "$OUTPUT_PARAMETER_NAME" --value "$SNAPSHOT_ID" --type String --overwrite
+fi
 
 # done!
 log "--------------------------------------------------"
