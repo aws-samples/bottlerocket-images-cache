@@ -1,0 +1,8 @@
+602401143452.dkr.ecr.us-east-2.amazonaws.com/amazon-k8s-cni-init:v1.19.5-eksbuild.3
+602401143452.dkr.ecr.us-east-2.amazonaws.com/amazon-k8s-cni:v1.19.5-eksbuild.3
+602401143452.dkr.ecr.us-east-2.amazonaws.com/amazon/aws-network-policy-agent:v1.2.2-eksbuild.1
+602401143452.dkr.ecr.us-east-2.amazonaws.com/eks/kube-proxy:v1.31.7-minimal-eksbuild.7
+602401143452.dkr.ecr.us-east-2.amazonaws.com/eks/aws-ebs-csi-driver:v1.44.0
+602401143452.dkr.ecr.us-east-2.amazonaws.com/eks/csi-node-driver-registrar:v2.13.0-eks-1-33-3
+602401143452.dkr.ecr.us-east-2.amazonaws.com/eks/livenessprobe:v2.15.0-eks-1-33-3
+182192988802.dkr.ecr.us-east-2.amazonaws.com/outreach-docker/registry.k8s.io/dns/k8s-dns-node-cache:1.25.0

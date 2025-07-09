@@ -131,7 +131,7 @@ done
 
 set +u
 set -- "${POSITIONAL[@]}" # restore positional parameters
-IMAGES="$1"
+IMAGES=$(paste -sd, images-list.txt)
 set -u
 
 AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(aws ec2 describe-availability-zones --output text --query 'AvailabilityZones[0].[RegionName]')}
@@ -140,7 +140,7 @@ INSTANCE_TYPE=${INSTANCE_TYPE:-m5.large}
 INSTANCE_ROLE=${INSTANCE_ROLE:-NONE}
 ENCRYPT=${ENCRYPT:-NONE}
 KMS_ID=${KMS_ID:-NONE}
-SNAPSHOT_SIZE=${SNAPSHOT_SIZE:-50}
+SNAPSHOT_SIZE=${SNAPSHOT_SIZE:-200}
 SECURITY_GROUP_ID=${SECURITY_GROUP_ID:-NONE}
 SUBNET_ID=${SUBNET_ID:-NONE}
 ASSOCIATE_PUBLIC_IP=${ASSOCIATE_PUBLIC_IP:-true}
@@ -214,7 +214,7 @@ log "[5/8] Pulling images:"
 for IMG in "${IMAGES_LIST[@]}"
 do
     ECR_REGION=$(echo "$IMG" | sed -n "s/^[0-9]*\.dkr\.ecr\.\([a-z1-9-]*\)\.amazonaws\.com.*$/\1/p")
-    [ -n "$ECR_REGION" ] && ECRPWD="--u AWS:$(aws ecr get-login-password --region "$ECR_REGION")" || ECRPWD=""
+    [ -n "$ECR_REGION" ] && ECRPWD="-u AWS:$(aws ecr get-login-password --region "$ECR_REGION")" || ECRPWD=""
     for PLATFORM in "${ARCH_LIST[@]}"
     do
         log "Pulling $IMG - $PLATFORM ... "
