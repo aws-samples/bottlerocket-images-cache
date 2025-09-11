@@ -18,7 +18,7 @@ Parameters:
     Default: NONE
   Encrypt:
     Type: String
-    Description: "Encrypt the AMI"
+    Description: "Encrypt the EBS volumes"
     Default: NONE
   KMSId:
     Type: String
@@ -86,6 +86,7 @@ Resources:
         InstanceType: !Ref InstanceType
         IamInstanceProfile:
           Name: !Ref BottlerocketNodeInstanceProfile
+        EbsOptimized: true
         UserData:
           Fn::Base64: |
             [settings.host-containers.admin]

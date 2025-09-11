@@ -43,8 +43,13 @@ function logerror() {
 }
 
 function cleanup() {
-    aws cloudformation delete-stack --stack-name "$1"
-    log "Stack deleted."
+    log "Cleaning up stack $1..."
+    if aws cloudformation describe-stacks --stack-name "$1" &> /dev/null; then
+        aws cloudformation delete-stack --stack-name "$1"
+        log "Stack deletion initiated."
+    else
+        log "Stack $1 not found or already deleted."
+    fi
 }
 
 while [[ $# -gt 0 ]]; do
@@ -159,9 +164,37 @@ if [ -z "${IMAGES}" ]; then
     exit 1
 fi
 
+# Validate image names to prevent injection
+for img in $(echo "$IMAGES" | tr ',' ' '); do
+    if [[ ! "$img" =~ ^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$ ]] && [[ ! "$img" =~ ^[0-9]+\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$ ]]; then
+        logerror "Invalid image format: $img"
+        exit 1
+    fi
+done
+
+# Validate architectures
+for arch in $(echo "$ARCHITECTURES" | tr ',' ' '); do
+    if [[ ! "$arch" =~ ^(amd64|arm64|386|arm)$ ]]; then
+        logerror "Invalid architecture: $arch"
+        exit 1
+    fi
+done
+
 # Use read -a to create arrays from comma-separated strings
 IFS=',' read -r -a IMAGES_LIST <<< "$IMAGES"
 IFS=',' read -r -a ARCH_LIST <<< "$ARCHITECTURES"
+# Validate AWS CLI is available and configured
+if ! command -v aws &> /dev/null; then
+    logerror "AWS CLI is not installed or not in PATH"
+    exit 1
+fi
+
+# Test AWS credentials
+if ! aws sts get-caller-identity &> /dev/null; then
+    logerror "AWS credentials not configured or invalid"
+    exit 1
+fi
+
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}"
 
 ##############################################################################################
@@ -175,11 +208,14 @@ CFN_PARAMS="AmiID=$AMI_ID InstanceType=$INSTANCE_TYPE InstanceRole=$INSTANCE_ROL
 
 # log $CFN_PARAMS
 
-aws cloudformation deploy \
+if ! aws cloudformation deploy \
   --stack-name "$CFN_STACK_NAME" \
   --template-file "$SCRIPTPATH/ebs-snapshot-instance.yaml" \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides $CFN_PARAMS > /dev/null
+  --parameter-overrides $CFN_PARAMS > /dev/null; then
+    logerror "Failed to deploy CloudFormation stack"
+    exit 1
+fi
 
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name "$CFN_STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 
@@ -223,9 +259,18 @@ do
             --document-name "AWS-RunShellScript" --comment "Pull Image ${IMG:0:75} - $PLATFORM" \
             --parameters commands="$COMMAND" \
             --query "Command.CommandId" --output text)
+        # Wait with timeout to prevent infinite loops
+        WAIT_COUNT=0
+        MAX_WAIT=60  # 5 minutes max wait
         until aws ssm wait command-executed --command-id "$CMDID" --instance-id "$INSTANCE_ID" &> /dev/null && log "$IMG - $PLATFORM pulled. "
         do
             sleep 5
+            WAIT_COUNT=$((WAIT_COUNT + 1))
+            if [ $WAIT_COUNT -gt $MAX_WAIT ]; then
+                logerror "Timeout waiting for image $IMG to pull"
+                cleanup "$CFN_STACK_NAME"
+                exit 1
+            fi
             if [ "$(aws ssm get-command-invocation --command-id "$CMDID" --instance-id "$INSTANCE_ID" --output text --query Status)" == "Failed" ]; then
                 REASON=$(aws ssm get-command-invocation --command-id "$CMDID" --instance-id "$INSTANCE_ID" --output text --query StandardOutputContent)
                 logerror "Image $IMG pulling failed with following output: "
