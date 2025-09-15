@@ -166,7 +166,7 @@ fi
 
 # Validate image names to prevent injection
 for img in $(echo "$IMAGES" | tr ',' ' '); do
-    if [[ ! "$img" =~ ^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$ ]] && [[ ! "$img" =~ ^[0-9]+\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$ ]]; then
+    if [[ ! "$img" =~ ^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$ ]] && [[ ! "$img" =~ ^[a-zA-Z0-9._/-]+(:[a-zA-Z0-9._-]+)?@sha256:[a-f0-9]{64}$ ]]; then
         logerror "Invalid image format: $img"
         exit 1
     fi
